@@ -5,7 +5,7 @@ import { ArrowLeft, Building2, Lightbulb, Loader2, ShieldCheck } from "lucide-re
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type University = { id: string; name: string; city: string; focus: string; email: string };
+type University = { id: string; name: string; city: string; focus: string; email: string; status: string };
 
 export default function UniversityLoginPage() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function UniversityLoginPage() {
 
   useEffect(() => {
     fetch("/api/universities").then((response) => response.json()).then((data) => {
-      setUniversities((data.universities || []).filter((u: University) => data.universities && u));
+      setUniversities((data.universities || []).filter((u: University) => u.status === "APPROVED"));
     }).finally(() => setLoaded(true));
   }, []);
 

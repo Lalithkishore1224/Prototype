@@ -259,6 +259,20 @@ export async function listStakeholders(): Promise<Stakeholder[]> {
   return rows.map(stakeholderFromRow);
 }
 
+export async function getStats(db?: PoolClient): Promise<{ challenges: number; universities: number; mentors: number; pilot: number }> {
+  const run = (text: string) => (db ? db.query(text) : getPool().query(text));
+  const challenges = await run(`SELECT count(*)::int n FROM jannirmaan_challenges`);
+  const universities = await run(`SELECT count(*)::int n FROM jannirmaan_universities`);
+  const mentors = await run(`SELECT count(*)::int n FROM jannirmaan_stakeholders WHERE type ILIKE '%industry%' OR type ILIKE '%mentor%'`);
+  const pilot = await run(`SELECT count(*)::int n FROM jannirmaan_challenges WHERE submission_status = 'ACCEPTED' OR status ILIKE '%pilot%'`);
+  return {
+    challenges: challenges.rows[0].n,
+    universities: universities.rows[0].n,
+    mentors: mentors.rows[0].n,
+    pilot: pilot.rows[0].n
+  };
+}
+
 export async function addChallenge(c: Challenge): Promise<void> {
   await withClient(async (client) => {
     await insertChallenge(client, c);

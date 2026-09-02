@@ -103,7 +103,7 @@ export default function UniversityPortal({ universityId, universityName, email }
         </div>
         {notice && <div className="success-note" style={{ marginBottom: 16 }}><CheckCircle2 size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />{notice}</div>}
         {error && <div className="error-note" style={{ marginBottom: 16 }}>{error}</div>}
-        <div className="portal-grid">
+        <div className="portal-stack">
           <section className="card">
             <div className="section-head" style={{ marginBottom: 12 }}>
               <div>
