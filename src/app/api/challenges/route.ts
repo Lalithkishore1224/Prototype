@@ -12,10 +12,11 @@ export async function GET() {
 export async function POST(request: Request) {
   await initDb();
   const body = await request.json().catch(() => null);
-  if (!body?.title || !body?.description || String(body.description).trim().length < 30 || !body?.location) {
-    return NextResponse.json({ error: "Title, location, and a 30-character description are required." }, { status: 400 });
+  const submittedBy = typeof body?.submittedBy === "string" ? String(body.submittedBy).trim() : "";
+  if (!body?.title || !body?.description || String(body.description).trim().length < 30 || !body?.location || !submittedBy) {
+    return NextResponse.json({ error: "Your name, the challenge title, location, and a 30-character description are required." }, { status: 400 });
   }
-  const input = { title: String(body.title).trim(), description: String(body.description).trim(), category: String(body.category ?? "Community"), location: String(body.location).trim() };
+  const input = { title: String(body.title).trim(), description: String(body.description).trim(), category: String(body.category ?? "Community"), location: String(body.location).trim(), submittedBy };
   let evaluation;
   try {
     const universities = await listUniversities();
