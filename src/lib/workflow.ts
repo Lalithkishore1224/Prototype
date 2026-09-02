@@ -1,4 +1,5 @@
 export type ReviewStatus = "PENDING_ADMIN_APPROVAL" | "APPROVED" | "REASSIGNED";
+export type SubmissionStatus = "SUBMITTED" | "ACCEPTED" | "REJECTED";
 export type University = { id: string; name: string; city: string; focus: string; description: string; email: string; teamCapacity: number; solutionTypes: "SOFTWARE" | "HARDWARE" | "BOTH"; status: "PENDING" | "APPROVED" | "REJECTED"; };
 export type Stakeholder = { id: string; organization: string; contact: string; type: string; status: "PENDING" | "APPROVED" | "REJECTED"; };
 export type Challenge = {
@@ -7,6 +8,11 @@ export type Challenge = {
   solutionType: "SOFTWARE" | "HARDWARE"; teamSize: number; adminContext?: string; aiRationale?: string;
   aiAssignedUniversityId: string; aiAssignedUniversityName: string; reviewStatus: ReviewStatus;
   approvedUniversityId?: string; approvedUniversityName?: string; createdAt: string;
+  githubUrl?: string; submittedAt?: string; submissionStatus?: SubmissionStatus;
+};
+export type Notification = {
+  id: string; type: string; message: string; challengeId?: string; universityId?: string; universityName?: string;
+  githubUrl?: string; createdAt: string; read: boolean;
 };
 
 export function buildChallenge(input: { title: string; description: string; category: string; location: string; solutionType: "SOFTWARE" | "HARDWARE"; teamSize: number; submittedBy?: string; universityId: string; universityName: string; confidence: number; rationale: string; }): Challenge {

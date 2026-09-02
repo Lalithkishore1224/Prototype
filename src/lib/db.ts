@@ -1,5 +1,5 @@
 import { Pool, type PoolClient } from "pg";
-import type { Challenge, Stakeholder, University } from "./workflow";
+import type { Challenge, Notification, Stakeholder, University } from "./workflow";
 import type { AiConfig } from "./ai";
 
 const globalPool = globalThis as typeof globalThis & { jannirmaanPool?: Pool };
@@ -77,7 +77,24 @@ CREATE TABLE IF NOT EXISTS jannirmaan_challenges (
   review_status TEXT NOT NULL,
   approved_university_id TEXT,
   approved_university_name TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  github_url TEXT,
+  submitted_at TEXT,
+  submission_status TEXT
+);
+ALTER TABLE jannirmaan_challenges ADD COLUMN IF NOT EXISTS github_url TEXT;
+ALTER TABLE jannirmaan_challenges ADD COLUMN IF NOT EXISTS submitted_at TEXT;
+ALTER TABLE jannirmaan_challenges ADD COLUMN IF NOT EXISTS submission_status TEXT;
+CREATE TABLE IF NOT EXISTS jannirmaan_notifications (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  message TEXT NOT NULL,
+  challenge_id TEXT,
+  university_id TEXT,
+  university_name TEXT,
+  github_url TEXT,
+  created_at TEXT NOT NULL,
+  read BOOLEAN NOT NULL DEFAULT false
 );
 CREATE TABLE IF NOT EXISTS jannirmaan_ai_config (
   id INTEGER PRIMARY KEY,
@@ -143,7 +160,8 @@ async function seed(client: PoolClient) {
 const CHALLENGE_COLUMNS = `id, title, description, category, location, status, priority, confidence,
   submitted_by, solution_type, team_size, admin_context, ai_rationale,
   ai_assigned_university_id, ai_assigned_university_name, review_status,
-  approved_university_id, approved_university_name, created_at`;
+  approved_university_id, approved_university_name, created_at,
+  github_url, submitted_at, submission_status`;
 
 function challengeFromRow(row: Record<string, unknown>): Challenge {
   return {
@@ -165,7 +183,24 @@ function challengeFromRow(row: Record<string, unknown>): Challenge {
     reviewStatus: row.review_status as Challenge["reviewStatus"],
     approvedUniversityId: (row.approved_university_id as string | null) ?? undefined,
     approvedUniversityName: (row.approved_university_name as string | null) ?? undefined,
-    createdAt: row.created_at as string
+    createdAt: row.created_at as string,
+    githubUrl: (row.github_url as string | null) ?? undefined,
+    submittedAt: (row.submitted_at as string | null) ?? undefined,
+    submissionStatus: (row.submission_status as Challenge["submissionStatus"] | null) ?? undefined
+  };
+}
+
+function notificationFromRow(row: Record<string, unknown>): Notification {
+  return {
+    id: row.id as string,
+    type: row.type as string,
+    message: row.message as string,
+    challengeId: (row.challenge_id as string | null) ?? undefined,
+    universityId: (row.university_id as string | null) ?? undefined,
+    universityName: (row.university_name as string | null) ?? undefined,
+    githubUrl: (row.github_url as string | null) ?? undefined,
+    createdAt: row.created_at as string,
+    read: row.read as boolean
   };
 }
 
@@ -195,12 +230,13 @@ function stakeholderFromRow(row: Record<string, unknown>): Stakeholder {
 
 async function insertChallenge(client: PoolClient, c: Challenge) {
   await client.query(
-    `INSERT INTO jannirmaan_challenges (${CHALLENGE_COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+    `INSERT INTO jannirmaan_challenges (${CHALLENGE_COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      ON CONFLICT (id) DO NOTHING`,
     [c.id, c.title, c.description, c.category, c.location, c.status, c.priority, c.confidence, c.submittedBy,
      c.solutionType, c.teamSize, c.adminContext ?? null, c.aiRationale ?? null,
      c.aiAssignedUniversityId, c.aiAssignedUniversityName, c.reviewStatus,
-     c.approvedUniversityId ?? null, c.approvedUniversityName ?? null, c.createdAt]
+     c.approvedUniversityId ?? null, c.approvedUniversityName ?? null, c.createdAt,
+     c.githubUrl ?? null, c.submittedAt ?? null, c.submissionStatus ?? null]
   );
 }
 
@@ -237,8 +273,8 @@ export async function updateChallenge(id: string, patch: Partial<Challenge>): Pr
     const current = challengeFromRow(existing.rows[0]);
     const merged: Challenge = { ...current, ...patch };
     await client.query(
-      `UPDATE jannirmaan_challenges SET title=$2, description=$3, category=$4, location=$5, status=$6, priority=$7, confidence=$8, submitted_by=$9, solution_type=$10, team_size=$11, admin_context=$12, ai_rationale=$13, ai_assigned_university_id=$14, ai_assigned_university_name=$15, review_status=$16, approved_university_id=$17, approved_university_name=$18 WHERE id=$1`,
-      [id, merged.title, merged.description, merged.category, merged.location, merged.status, merged.priority, merged.confidence, merged.submittedBy, merged.solutionType, merged.teamSize, merged.adminContext ?? null, merged.aiRationale ?? null, merged.aiAssignedUniversityId, merged.aiAssignedUniversityName, merged.reviewStatus, merged.approvedUniversityId ?? null, merged.approvedUniversityName ?? null]
+      `UPDATE jannirmaan_challenges SET title=$2, description=$3, category=$4, location=$5, status=$6, priority=$7, confidence=$8, submitted_by=$9, solution_type=$10, team_size=$11, admin_context=$12, ai_rationale=$13, ai_assigned_university_id=$14, ai_assigned_university_name=$15, review_status=$16, approved_university_id=$17, approved_university_name=$18, github_url=$19, submitted_at=$20, submission_status=$21 WHERE id=$1`,
+      [id, merged.title, merged.description, merged.category, merged.location, merged.status, merged.priority, merged.confidence, merged.submittedBy, merged.solutionType, merged.teamSize, merged.adminContext ?? null, merged.aiRationale ?? null, merged.aiAssignedUniversityId, merged.aiAssignedUniversityName, merged.reviewStatus, merged.approvedUniversityId ?? null, merged.approvedUniversityName ?? null, merged.githubUrl ?? null, merged.submittedAt ?? null, merged.submissionStatus ?? null]
     );
     updated = merged;
   });
@@ -292,4 +328,37 @@ export async function setAiConfigRow(config: AiConfig): Promise<void> {
      ON CONFLICT (id) DO UPDATE SET provider=$1, model=$2, base_url=$3, api_key=$4, configured=$5, updated_at=$6`,
     [config.provider, config.model, config.baseUrl, config.apiKey ?? null, config.configured, config.updatedAt]
   );
+}
+
+export async function listAssignedChallenges(universityId: string): Promise<Challenge[]> {
+  const rows = await query(
+    `SELECT ${CHALLENGE_COLUMNS} FROM jannirmaan_challenges
+     WHERE (approved_university_id = $1 OR ai_assigned_university_id = $1)
+       AND review_status IN ('APPROVED', 'REASSIGNED')
+     ORDER BY created_at DESC, id DESC`,
+    [universityId]
+  );
+  return rows.map(challengeFromRow);
+}
+
+export async function getChallenge(id: string): Promise<Challenge | null> {
+  const rows = await query(`SELECT ${CHALLENGE_COLUMNS} FROM jannirmaan_challenges WHERE id = $1`, [id]);
+  return rows.length ? challengeFromRow(rows[0]) : null;
+}
+
+export async function getNotifications(): Promise<Notification[]> {
+  const rows = await query(`SELECT id, type, message, challenge_id, university_id, university_name, github_url, created_at, read FROM jannirmaan_notifications ORDER BY created_at DESC`);
+  return rows.map(notificationFromRow);
+}
+
+export async function addNotification(n: Notification): Promise<void> {
+  await getPool().query(
+    `INSERT INTO jannirmaan_notifications (id, type, message, challenge_id, university_id, university_name, github_url, created_at, read)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [n.id, n.type, n.message, n.challengeId ?? null, n.universityId ?? null, n.universityName ?? null, n.githubUrl ?? null, n.createdAt, n.read]
+  );
+}
+
+export async function markNotificationsRead(): Promise<void> {
+  await getPool().query(`UPDATE jannirmaan_notifications SET read = true`);
 }

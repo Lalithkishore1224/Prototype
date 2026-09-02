@@ -1,22 +1,9 @@
-"use client";
+import { redirect } from "next/navigation";
+import { requireUniversity } from "@/lib/auth";
+import UniversityPortal from "./university-portal";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CheckCircle2, Lightbulb, Send } from "lucide-react";
-import Link from "next/link";
-
-type UniversityRecord = { id: string; name: string; city: string; focus: string; description: string; email: string; teamCapacity: number; solutionTypes: string; status: string };
-
-export default function UniversityPortal() {
-  const [universities, setUniversities] = useState<UniversityRecord[]>([]);
-  const [message, setMessage] = useState("");
-  useEffect(() => { fetch("/api/universities").then((response) => response.json()).then((data) => setUniversities(data.universities)); }, []);
-  async function register(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/universities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.get("name"), city: form.get("city"), focus: form.get("focus"), description: form.get("description"), email: form.get("email"), teamCapacity: Number(form.get("teamCapacity")), solutionTypes: form.get("solutionTypes") }) });
-    const data = await response.json();
-    if (!response.ok) { setMessage(data.error); return; }
-    setUniversities((items) => [...items, data.university]); setMessage("Academy intake submitted. An admin must verify the institution before AI matching can use it."); event.currentTarget.reset();
-  }
-  return <div className="portal-shell"><header className="nav"><Link href="/" className="brand"><span className="brand-mark"><Lightbulb size={17} /></span>JanNirmaan</Link><Link href="/" className="back-link"><ArrowLeft size={15} /> Public board</Link></header><main className="portal-content"><div className="portal-hero"><div><div className="eyebrow">Academy partnership portal</div><h1>Bring your student teams into the solution network.</h1><p className="muted">Tell JanNirmaan what your academy can build. The AI evaluator uses this profile to make explainable recommendations.</p></div><div className="portal-icon"><Building2 size={30} /></div></div><div className="portal-grid"><section className="card"><h2>Academy intake</h2><p className="muted">All registrations are reviewed by the platform admin before becoming eligible.</p>{message && <div className="success-note"><CheckCircle2 size={16} /> {message}</div>}<form className="form-grid" onSubmit={register}><div className="field"><label>Institution name</label><input className="input" name="name" placeholder="University or innovation centre" required /></div><div className="config-row"><div className="field"><label>City</label><input className="input" name="city" placeholder="Ranchi" required /></div><div className="field"><label>Official email</label><input className="input" name="email" type="email" placeholder="innovation@university.ac.in" required /></div></div><div className="field"><label>Academy description</label><textarea className="textarea" name="description" placeholder="Describe your labs, mentors, student capability, and the kind of challenges you can take." required minLength={30} /></div><div className="field"><label>Focus areas</label><input className="input" name="focus" placeholder="Disaster resilience, public systems, IoT..." required /></div><div className="config-row"><div className="field"><label>Student organizations available</label><input className="input" name="teamCapacity" type="number" min="1" max="1000" placeholder="Number of students" required /></div><div className="field"><label>Solution capability</label><select className="select" name="solutionTypes" defaultValue="BOTH"><option value="SOFTWARE">Software solutions</option><option value="HARDWARE">Hardware solutions</option><option value="BOTH">Software and hardware</option></select></div></div><button className="primary" type="submit"><Send size={15} /> Submit academy intake</button></form></section><section><h2 className="portal-section-title">Academy network</h2><div className="portal-list">{universities.map((item) => <div className="card portal-list-item" key={item.id}><div><strong>{item.name}</strong><span>{item.city} · {item.solutionTypes} · capacity {item.teamCapacity}</span><small>{item.focus}</small></div><span className={`badge ${item.status === "APPROVED" ? "green" : item.status === "REJECTED" ? "orange" : "orange"}`}>{item.status === "APPROVED" ? "Verified" : item.status === "REJECTED" ? "Rejected" : "Pending verification"}</span></div>)}</div></section></div></main></div>;
+export default async function UniversityPage() {
+  const session = await requireUniversity();
+  if (!session || !session.universityId) redirect("/university/login");
+  return <UniversityPortal universityId={session.universityId} universityName={session.universityName ?? ""} email={session.email} />;
 }
